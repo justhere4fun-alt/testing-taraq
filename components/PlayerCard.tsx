@@ -7,7 +7,12 @@ interface PlayerCardProps {
   isCurrentTurn: boolean;
   gamePhase: GamePhase;
   diceValue: number | null;
+  isSplitMode: boolean;
+  splitPendingValue: number; // How much is currently assigned to this player in split mode
+  remainingSplitPoints: number; // Global points left to assign
+  canInteract: boolean; // New prop to control if buttons are clickable
   onAction: (targetId: string, action: 'ADD' | 'REMOVE') => void;
+  onSplitAdjust: (targetId: string, delta: number) => void;
 }
 
 const PlayerCard: React.FC<PlayerCardProps> = ({ 
@@ -15,11 +20,17 @@ const PlayerCard: React.FC<PlayerCardProps> = ({
   isCurrentTurn, 
   gamePhase, 
   diceValue, 
-  onAction 
+  isSplitMode,
+  splitPendingValue,
+  remainingSplitPoints,
+  canInteract,
+  onAction,
+  onSplitAdjust
 }) => {
   
   const isDead = player.isDead;
-  const showActions = gamePhase === GamePhase.DECIDE && !isDead;
+  const showStandardActions = gamePhase === GamePhase.DECIDE && !isDead && !isSplitMode;
+  const showSplitActions = gamePhase === GamePhase.DECIDE && !isDead && isSplitMode;
 
   // Dynamic styles based on status
   let cardBorder = "border-slate-700";
@@ -47,6 +58,13 @@ const PlayerCard: React.FC<PlayerCardProps> = ({
         <div className="absolute -top-3 px-3 py-1 bg-yellow-500 text-black text-xs font-bold uppercase tracking-wider rounded-full shadow-lg z-10">
           Current Turn
         </div>
+      )}
+
+      {/* Host Badge */}
+      {player.isHost && !isDead && (
+         <div className="absolute top-2 right-2 px-2 py-0.5 bg-indigo-900/80 text-indigo-200 text-[10px] font-bold uppercase rounded border border-indigo-700/50">
+           HOST
+         </div>
       )}
 
       {/* Avatar / Icon */}
@@ -89,6 +107,11 @@ const PlayerCard: React.FC<PlayerCardProps> = ({
             <span className={`text-2xl font-mono font-bold ${player.hearts < 0 ? 'text-red-400' : 'text-white'}`}>
               {player.hearts}
             </span>
+            {splitPendingValue !== 0 && (
+                <span className={`text-sm font-bold ${splitPendingValue > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    ({splitPendingValue > 0 ? '+' : ''}{splitPendingValue})
+                </span>
+            )}
             <span className="text-slate-500 text-xs ml-1">Lives</span>
           </>
         )}
@@ -101,9 +124,9 @@ const PlayerCard: React.FC<PlayerCardProps> = ({
          </div>
       )}
 
-      {/* Action Buttons (Only visible during Decision Phase) */}
-      {showActions && diceValue !== null && (
-        <div className="grid grid-cols-2 gap-2 w-full mt-auto pt-2 border-t border-slate-700/50">
+      {/* Action Buttons (Standard Mode) */}
+      {showStandardActions && diceValue !== null && (
+        <div className={`grid grid-cols-2 gap-2 w-full mt-auto pt-2 border-t border-slate-700/50 ${!canInteract ? 'opacity-50 pointer-events-none' : ''}`}>
            <button
              onClick={() => onAction(player.id, 'ADD')}
              className="flex flex-col items-center justify-center py-2 px-1 bg-emerald-900/40 hover:bg-emerald-700 text-emerald-400 hover:text-white rounded-lg transition-colors border border-emerald-800/50"
@@ -120,6 +143,48 @@ const PlayerCard: React.FC<PlayerCardProps> = ({
              <span className="text-lg font-bold leading-none">-{diceValue}</span>
            </button>
         </div>
+      )}
+
+      {/* Action Buttons (Split Mode) */}
+      {showSplitActions && (
+          <div className={`w-full mt-auto pt-2 border-t border-slate-700/50 ${!canInteract ? 'opacity-50 pointer-events-none' : ''}`}>
+              <div className="flex items-center justify-between bg-slate-900 rounded-lg p-1">
+                  {/* Harm Button (-1) */}
+                  <button 
+                    onClick={() => onSplitAdjust(player.id, -1)}
+                    className={`
+                        w-10 h-10 rounded flex items-center justify-center font-bold transition-colors
+                        ${remainingSplitPoints === 0 && splitPendingValue >= 0 
+                            ? 'bg-slate-800 text-slate-600 cursor-not-allowed' 
+                            : 'bg-rose-900/50 text-rose-400 hover:bg-rose-700 hover:text-white'}
+                    `}
+                  >
+                      -1
+                  </button>
+
+                  {/* Current Pending Value Display */}
+                  <div className="font-mono font-bold w-12 text-center">
+                      {splitPendingValue}
+                  </div>
+
+                  {/* Heal Button (+1) */}
+                  <button 
+                    onClick={() => onSplitAdjust(player.id, 1)}
+                    disabled={remainingSplitPoints === 0 && splitPendingValue <= 0}
+                    className={`
+                        w-10 h-10 rounded flex items-center justify-center font-bold transition-colors
+                        ${remainingSplitPoints === 0 && splitPendingValue <= 0 
+                            ? 'bg-slate-800 text-slate-600 cursor-not-allowed' 
+                            : 'bg-emerald-900/50 text-emerald-400 hover:bg-emerald-700 hover:text-white'}
+                    `}
+                  >
+                      +1
+                  </button>
+              </div>
+              <div className="text-[10px] text-center text-slate-500 mt-1 uppercase tracking-wider">
+                  Adjust Hearts
+              </div>
+          </div>
       )}
     </div>
   );
